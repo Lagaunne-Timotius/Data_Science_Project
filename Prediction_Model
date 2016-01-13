@@ -1,0 +1,100 @@
+---
+title: "Prediction_Model"
+author: "by Timotius Andrean Patrick Lagaunne"
+output: html_document
+---
+
+#LIBRARY
+```{r,echo=FALSE}
+library(ggplot2)
+library(randomForest)
+library(zoo)
+library(caret)
+library(gmodels)
+library(lattice)
+library(lubridate)
+library(mice)
+library(VIM)
+library(dplyr)
+```
+
+
+##Prediction Model Construction
+
+###Feature Engineering
+Based on the exploratory analysis
+the possible feature needed to be concerned are 
+- date_account_created 
+- age
+- month and hour from time stamp
+
+
+```{r}
+###Feature_Extraction function
+feature_extraction<-function(airbnb){
+  ## all the features not needed is taken out
+  airbnb<-airbnb[,-1]
+  airbnb<-airbnb[,-(2:4)]
+  airbnb<-airbnb[,-(3:11)]
+  ##feature extraction of date_account_created
+  airbnb$date_account_created=month(airbnb$date_account_created)
+  ##feature extraction of timestamp_first_active
+  ##not needed
+  ##feature extraction of age
+  airbnb$age<-ceiling(airbnb$age/5)
+  ##data type to factor
+  airbnb$date_account_created=as.factor(airbnb$date_account_created)
+  airbnb$age=as.factor(airbnb$age)
+  airbnb$`newtimestamp$hour`=as.factor(airbnb$`newtimestamp$hour`)
+  airbnb$`newtimestamp$mon`=as.factor(airbnb$`newtimestamp$mon`)
+  return(airbnb)
+}
+
+```
+###Model Training and Prediction
+
+```{r,warning=FALSE,eval=FALSE}
+###Data Loading
+setwd("/home/lagaunne/Patrick/Back Up/Document/R/Kaggle/Airbnb")
+realtest<-read.csv("test_users.csv",na.strings=c("","NA"))
+airbnb<-read.csv("train_users_2.csv",na.strings=c("","NA"))
+realtest<-cbind(realtest,"NA")
+names(realtest)[16]<-"country_destination"
+airbnb<-rbind(airbnb,realtest)
+###Feature Construction
+airbnb$timestamp_first_active <- ymd_hms(airbnb$timestamp_first_active)
+newunclasstimestamp<-unclass(as.POSIXlt(airbnb$timestamp_first_active))
+temp=data.frame(newunclasstimestamp)
+newtimestamp<-cbind(temp,airbnb$country_destination)
+newtimestamp<-data.frame(newtimestamp)
+airbnb<-cbind(airbnb,newtimestamp$hour,newtimestamp$mon) 
+airbnb$age[airbnb$age>100]=NA
+airbnb$age[airbnb$age<14]=NA
+airbnb$age<-as.integer(airbnb$age)
+airbnb$age[is.na(airbnb$age)]=mean(airbnb$age,na.rm=TRUE)
+airbnb$signup_flow<-as.factor(airbnb$signup_flow)
+airbnb<-feature_extraction(airbnb)
+testdata<-airbnb[213452:nrow(airbnb),]
+airbnb<-airbnb[1:213451,]
+
+###Training and Test data construction
+trainindex<-createDataPartition(airbnb$country_destination,p=.8,list=FALSE,times=1)
+
+train_airbnb<-airbnb[trainindex,-3]
+class_train_airbnb<-airbnb[trainindex,3]
+test_airbnb<-airbnb[-trainindex,-3]
+class_test_airbnb<-airbnb[-trainindex,3]
+class_train_airbnb<-droplevels(class_train_airbnb)
+###Model Training and Checking
+first_user_model<-randomForest(train_airbnb,class_train_airbnb,ntree=25,mtry=3)
+p<-predict(first_user_model,test_airbnb,type="response")
+CrossTable(x=class_test_airbnb,y=p,prop.chisq=FALSE)
+###Model Prediction
+m<-predict(first_user_model,testdata,type="response")
+sample<-read.csv("sample_submission_NDF.csv")
+sample$country<-m
+sample<-sample[-1]
+write.csv(sample,file="finalresult.csv")
+
+```
+
