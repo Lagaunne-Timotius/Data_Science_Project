@@ -1,0 +1,172 @@
+---
+title: "Exploratory analysis Airbnb Kaggle Competition"
+author: "by Timotius Andrean Patrick Lagaunne"
+output: html_document
+---
+#LIBRARY
+```{r,echo=FALSE}
+library(ggplot2)
+library(randomForest)
+library(zoo)
+library(caret)
+library(gmodels)
+library(lattice)
+library(lubridate)
+library(mice)
+library(VIM)
+library(dplyr)
+```
+#General Overview of Data
+```{r}
+setwd("/home/lagaunne/Patrick/Back Up/Document/R/Kaggle/Airbnb")
+airbnb<-read.csv("train_users_2.csv",na.strings=c("","NA"))
+
+summary(airbnb)
+head(airbnb)
+tail(airbnb)
+str(airbnb)
+##Missing data
+aggr_plot <- aggr(airbnb, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(airbnb), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+
+*There are several things that we need to concern based on the overview of the data. 
+  +The timestamp_first_active variable is not in the right format. 
+  +The signup_flow variable is better to be factor type
+  +The age variable has "NA" value and age value of 2014 which is impossible for age variable
+  +The date first booking has missing values
+  +The first_affiliate_tracked has missing values
+  +the weight is different for different output of country_destination
+
+
+##Data Cleaning and Manipulation
+
+###timestamp_first_active 
+```{r}
+airbnb$timestamp_first_active <- ymd_hms(airbnb$timestamp_first_active)
+##unclass the timestamp variable 
+
+```
+
+###age
+```{r,warning=FALSE}
+##outlier taken out
+airbnb$age[airbnb$age>100]=NA
+airbnb$age[airbnb$age<14]=NA
+airbnb$age<-as.integer(airbnb$age)
+##missing value imputation with the mean
+airbnb$age[is.na(airbnb$age)]=mean(airbnb$age,na.rm=TRUE)
+
+
+```
+###sign
+```{r}
+###change the variable into factor type
+airbnb$signup_flow<-as.factor(airbnb$signup_flow)
+
+```
+
+
+#Overview of Data Again
+```{r}
+summary(airbnb)
+str(airbnb)
+##Missing data
+aggr_plot <- aggr(airbnb, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(airbnb), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+Going through the overview of data again, The the date_first_booking variable still has missing value, but the missing value happen because the registered user has not book in airbnb so the missing value is fine. The first_affiliate_tracked are also not very significant so its fine to keep it as it is. The only thing that need to be solve still is the weight which can be solve with sampling adjustment with bootstraping
+
+##Sampling Adjustment
+```{r}
+###Re-adjusting the weight of data by bootstraping
+A<-group_by(airbnb,country_destination)
+airbnb<-sample_n(A,30000,replace=TRUE)
+
+```
+##Data Exploratory
+###date_account created
+```{r, echo=FALSE}
+ggplot(data=airbnb,aes(date_account_created))+geom_bar()+facet_wrap(~country_destination)
+
+```
+
+###timestamp_first_active
+```{r}
+newunclasstimestamp<-unclass(as.POSIXlt(airbnb$timestamp_first_active))
+temp=data.frame(newunclasstimestamp)
+newtimestamp<-cbind(temp,airbnb$country_destination)
+newtimestamp<-data.frame(newtimestamp)
+airbnb<-cbind(airbnb,newtimestamp$hour,newtimestamp$mon)  
+summary(newtimestamp)
+str(newtimestamp)
+### Among the variable the only one that need to be use most likely is the hour and month because hour can specified the user place and the month can give seasonal feature
+ggplot(data=newtimestamp,aes(hour))+geom_bar()+facet_wrap(~airbnb.country_destination)
+ggplot(data=newtimestamp,aes(mon))+geom_bar()+facet_wrap(~airbnb.country_destination)
+                
+```
+
+###date_first_booking
+```{r, echo=FALSE}
+ggplot(data=airbnb,aes(date_first_booking))+geom_bar()+facet_wrap(~country_destination)+coord_cartesian(ylim=c(0,250))
+
+```
+
+###gender
+```{r,echo=FALSE}
+ggplot(data=airbnb,aes(gender))+geom_bar(aes(fill=country_destination))
+
+```
+
+###age
+```{r, echo=FALSE}
+ggplot(data=airbnb,aes(age))+geom_bar(aes(fill=country_destination))
+```
+
+###signup_method
+```{r,echo=FALSE}
+ggplot(data=airbnb,aes(signup_method))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###signup_flow
+```{r,echo=FALSE}
+ggplot(data=airbnb,aes(signup_flow))+geom_bar()+facet_wrap(~country_destination)
+
+```
+
+###language
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(language))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###affiliate_channel
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(affiliate_channel))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###affiliate_provider
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(affiliate_provider))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###first_affiliate_tracked
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(first_affiliate_tracked))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###signup_app
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(signup_app))+geom_bar()+facet_wrap(~country_destination)
+```
+
+###first_device_type
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(first_device_type))+geom_bar()+facet_wrap(~country_destination)
+```
+###first_browser
+```{r,echo=FALSE}
+ ggplot(data=airbnb,aes(first_browser))+geom_bar()+facet_wrap(~country_destination)
+```
+
+Overall, the variable that might be matter are hour,mon of timestamp_first_active, age of the user and the date_account_created.
+Other variable do not seem to have pattern that able to predict the first user country_destination because the distribution of the variable data are the same across the country_destination. date_first_booking might be another variable that can be into account but because the testdata provided do not give the date_first_booking, I decide not to use it as feature for the predictive model.
+
+
