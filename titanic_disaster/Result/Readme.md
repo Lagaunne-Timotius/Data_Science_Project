@@ -1,7 +1,8 @@
 
 
-Titanic_Modeling_1 consist only the random forest model
-Titanic Modeling_2 consist of the svm,GLM,k-means,k nearest neighbor 
+#Titanic_Modeling_1 consist only the random forest model
+
+#Titanic Modeling_2 consist of the svm,GLM,k-means,k nearest neighbor 
 
 #NEW ensemble model
 the ensemble model.csv is the ensembled process of the machine learning algorithm.
