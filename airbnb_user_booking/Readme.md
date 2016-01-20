@@ -1,4 +1,4 @@
-#Airbnb New User Booking Data Science Project
+#Airbnb New User Booking Data Science Project (https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings)
 
 My model is able to predict 0.6466 of new user country_destination
 
