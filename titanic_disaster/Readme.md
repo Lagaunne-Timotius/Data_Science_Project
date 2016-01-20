@@ -1,4 +1,4 @@
-#Titanic Disaster Machine Learning Project
+#Titanic Disaster Machine Learning Project (https://www.kaggle.com/c/titanic)
 
-My predictive model able to predict the survival of passenger by0.76077 of the test data
+My predictive model able to predict the survival of passenger by 0.76555 of the test data
 
