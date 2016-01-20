@@ -1,0 +1,157 @@
+---
+title: "Titanic Modeling 2"
+author: "Timotius Andrean Patrick Lagaunne"
+date: "January 20, 2016"
+output: html_document
+---
+
+#Library
+```{r}
+library(ggplot2)
+library(dplyr)
+library(zoo)
+library(car)
+library(lubridate)
+library(lattice)
+library(mice)
+library(VIM)
+library(gmodels)
+library(randomForest)
+library(caret)
+library(plyr)
+library(kernlab)
+library(class)
+
+```
+
+You can also embed plots, for example:
+#Feature Engineering 
+```{r, warning=FALSE}
+rm(list = ls())
+setwd("/home/lagaunne/Patrick/Back Up/Document/R/Kaggle/Titanic")
+
+ titanic_test<-read.csv("test.csv",na.strings=c("","NA"))
+ titanic_train<-read.csv("train.csv",na.strings=c("","NA"))
+ titanic_test<-cbind(titanic_test$PassengerId,"NA",titanic_test[,2:ncol(titanic_test)])
+ names(titanic_test)[2]<-"Survived"
+ names(titanic_test)[1]<-"PassengerId"
+ titanic<-rbind(titanic_train,titanic_test)
+ 
+ titanic=titanic[,-1]
+ titanic=titanic[,-3]
+
+
+ 
+ Mode <- function(x, na.rm = FALSE) {
+   if(na.rm){
+     x = x[!is.na(x)]
+   }
+   
+   ux <- unique(x)
+   return(ux[which.max(tabulate(match(x, ux)))])
+ }
+ titanic$Cabin<-substr(titanic$Cabin,1,1)
+ titanic$Cabin[is.na(titanic$Cabin)]=Mode(titanic$Cabin,na.rm=TRUE)
+ titanic$Cabin<-revalue(titanic$Cabin,c("A"=-3,"B"=-2,"C"=-1,"D"=0,"E"=1,"F"=2,"G"=3,"T"=4))
+ titanic$Ticket<-substr(titanic$Ticket,1,1)
+ titanic$Ticket[!is.na(as.numeric(titanic$Ticket))]=1
+ titanic$Ticket[is.na(titanic$Ticket)]=Mode(titanic$Ticket,na.rm=TRUE)
+ titanic$Ticket<-revalue(titanic$Ticket,c("A"=2,"P"=-1,"S"=0,"C"=-2,"F"=3,"L"=-3,"W"=4))
+ titanic$Age[is.na(titanic$Age)]=mean(titanic$Age,na.rm=TRUE)
+ titanic$Sex<-revalue(titanic$Sex, c("male"=0, "female"=1))
+ titanic=mutate(titanic,Embarked2=Embarked)
+ titanic$Embarked<-revalue(titanic$Embarked, c("S"=1, "C"=0,"Q"=0))
+ titanic$Embarked2<-revalue(titanic$Embarked2, c("S"=0, "C"=1,"Q"=0))
+ titanic$Embarked[is.na(titanic$Embarked)]=0
+ titanic$Embarked2[is.na(titanic$Embarked2)]=0
+ titanic$Fare[is.na(titanic$Fare)]=0
+ titanic$Sex<-as.numeric(titanic$Sex)
+ titanic$Age[is.na(titanic$Age)]=mean(titanic$Age,na.rm=TRUE)
+ titanic$Embarked<-as.numeric(titanic$Embarked)
+ titanic$Embarked2<-as.numeric(titanic$Embarked2)
+ titanic$Cabin<-as.numeric(titanic$Cabin)
+ titanic$Ticket<-as.numeric(titanic$Ticket)
+ 
+ titanic_train<-titanic[1:891,]
+ titanic_test<-titanic[892:nrow(titanic),]
+ trainindex<-createDataPartition(titanic_train$Survived,p=.8,list=FALSE,times=1)
+ 
+ train_titanic<-titanic_train[trainindex,-1]
+ class_train_titanic<-titanic_train[trainindex,1]
+ test_titanic<-titanic_train[-trainindex,-1]
+ class_test_titanic<-titanic_train[-trainindex,1]
+```
+#Modeling 
+```{r, eval=FALSE}
+#kkn
+ p<-knn(train=train_titanic,test=test_titanic,cl=class_train_titanic,k=10)
+ CrossTable(x=class_test_titanic,y=p,prop.chisq=FALSE)
+ ###Model Prediction
+ titanic_ts<-titanic_test[,-1]
+ p<-knn(train=train_titanic,test=titanic_ts,cl=class_train_titanic,k=8)
+ p<-as.vector(p)
+ sample<-read.csv("test.csv")
+ sample<-cbind(sample[1],p)
+ names(sample)[2]<-"Survived"
+ names(sample)[1]<-"PassengerId"
+ write.csv(sample,file="knnresult.csv",row.names=FALSE)
+ #svm
+ train_titanic<-titanic_train[trainindex,]
+ test_titanic<-titanic_train[-trainindex,]
+ 
+ s2<-ksvm(Survived ~ .,data=train_titanic,kernel="vanilladot")
+ pr<-predict(s2,test_titanic,type="response")
+
+ CrossTable(x=class_test_titanic,y=pr,prop.chisq=FALSE)
+ real=predict(s2,titanic_test)
+
+ real<-as.vector(real)
+ sample<-read.csv("test.csv")
+ sample<-cbind(sample[1],real)
+ names(sample)[2]<-"Survived"
+ names(sample)[1]<-"PassengerId"
+ write.csv(sample,file="SVMresult.csv",row.names=FALSE)
+ 
+ 
+ 
+ #glm
+ train_titanic<-titanic_train[trainindex,]
+ test_titanic<-titanic_train[-trainindex,]
+ 
+ p2<-lm(Survived ~ Pclass+Sex+Age+SibSp+Parch+Ticket+Fare+Cabin+Embarked+Embarked2,data=train_titanic)
+ pr<-predict(p2,test_titanic)
+ Q=round(pr)
+ CrossTable(x=class_test_titanic,y=Q,prop.chisq=FALSE)
+ real=predict(p2,titanic_test)
+ Q=round(real)
+ Q<-as.vector(Q)
+ sample<-read.csv("test.csv")
+ sample<-cbind(sample[1],Q)
+ names(sample)[2]<-"Survived"
+ names(sample)[1]<-"PassengerId"
+ write.csv(sample,file="GLMresult.csv",row.names=FALSE)
+ 
+ #kmeans
+ train_titanic<-titanic_train[trainindex,-1]
+ test_titanic<-titanic_train[-trainindex,-1]
+ cluster_titanic<-kmeans(test_titanic,2)
+ cluster<-cluster_titanic$cluster
+ cluster1<-cluster-1
+ cluster2<-2-cluster
+ CrossTable(x=class_test_titanic,y=cluster1,prop.chisq=FALSE)
+ #CrossTable(x=class_test_titanic,y=cluster2,prop.chisq=FALSE)
+ ##Prediction
+ titanic_test2<-titanic_test[,-1]
+ cluster_titanic<-kmeans(titanic_test2,2)
+ cluster<-cluster_titanic$cluster
+ cluster1<-cluster-1
+ cluster2<-2-cluster
+ m<-as.vector(cluster1)
+ sample<-read.csv("test.csv")
+ sample<-cbind(sample[1],m)
+ names(sample)[2]<-"Survived"
+ names(sample)[1]<-"PassengerId"
+ write.csv(sample,file="kmeans.csv",row.names=FALSE)
+```
+
+
